@@ -534,7 +534,16 @@ class Connection(metaclass=CantTouchThis):
         )
         self.target = target_info
 
-    async def send(
+    async def send(self, *args, **kwargs) -> T:
+        try:
+            result = await asyncio.wait_for(self._send(*args, **kwargs), timeout=60)
+            return result
+        except asyncio.TimeoutError:
+            raise asyncio.TimeoutError(
+                'The send command failed, perhaps there is '
+                'something wrong with the connection?')
+
+    async def _send(
         self,
         cdp_obj: Generator[dict[str, Any], dict[str, Any], T],
         _is_update: bool = False,
