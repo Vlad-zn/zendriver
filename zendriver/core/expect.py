@@ -41,7 +41,9 @@ class BaseRequestExpectation:
         if re.fullmatch(self.url_pattern, event.request.url):
             self._remove_request_handler()
             self.request_id = event.request_id
-            self.request_future.set_result(event)
+            # ensure the future is not already done
+            if not self.request_future.done():
+                self.request_future.set_result(event)
 
     async def _response_handler(self, event: cdp.network.ResponseReceived) -> None:
         """
