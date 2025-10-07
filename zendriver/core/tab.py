@@ -1232,28 +1232,36 @@ class Tab(Connection):
             await asyncio.sleep(0.1)
 
     def expect_request(
-        self, url_pattern: Union[str, re.Pattern[str]]
+        self, url_pattern: Union[str, re.Pattern[str], list[Union[str, re.Pattern[str]]]], count: Union[int, None] = None
     ) -> RequestExpectation:
         """
         Creates a request expectation for a specific URL pattern.
-        :param url_pattern: The URL pattern to match requests.
-        :type url_pattern: Union[str, re.Pattern[str]]
+        :param url_pattern: The URL pattern(s) to match requests. Can be a single pattern or a list of patterns.
+                            When multiple patterns are provided with count parameter, waits until ALL patterns have matched at least once.
+        :type url_pattern: Union[str, re.Pattern[str], list[Union[str, re.Pattern[str]]]]
+        :param count: Enable multiple expectation mode. When set with multiple patterns, waits until all patterns have matched.
+                      If None, waits for one match (single expectation mode).
+        :type count: Union[int, None]
         :return: A RequestExpectation instance.
         :rtype: RequestExpectation
         """
-        return RequestExpectation(self, url_pattern)
+        return RequestExpectation(self, url_pattern, count)
 
     def expect_response(
-        self, url_pattern: Union[str, re.Pattern[str]]
+        self, url_pattern: Union[str, re.Pattern[str], list[Union[str, re.Pattern[str]]]], count: Union[int, None] = None
     ) -> ResponseExpectation:
         """
         Creates a response expectation for a specific URL pattern.
-        :param url_pattern: The URL pattern to match responses.
-        :type url_pattern: Union[str, re.Pattern[str]]
+        :param url_pattern: The URL pattern(s) to match responses. Can be a single pattern or a list of patterns.
+                            When multiple patterns are provided with count parameter, waits until ALL patterns have matched at least once.
+        :type url_pattern: Union[str, re.Pattern[str], list[Union[str, re.Pattern[str]]]]
+        :param count: Enable multiple expectation mode. When set with multiple patterns, waits until all patterns have matched.
+                      If None, waits for one match (single expectation mode).
+        :type count: Union[int, None]
         :return: A ResponseExpectation instance.
         :rtype: ResponseExpectation
         """
-        return ResponseExpectation(self, url_pattern)
+        return ResponseExpectation(self, url_pattern, count)
 
     def expect_download(self) -> DownloadExpectation:
         """
