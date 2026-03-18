@@ -79,7 +79,6 @@ class BaseRequestExpectation:
         """
         Internal handler for request events.
         :param event: The request event.
-        :type event: cdp.network.RequestWillBeSent
         """
         pattern_idx = self._matches_any_pattern(event.request.url)
         if pattern_idx is not None:
@@ -103,7 +102,6 @@ class BaseRequestExpectation:
         """
         Internal handler for response events.
         :param event: The response event.
-        :type event: cdp.network.ResponseReceived
         """
         if self.count is None:
             # Single expectation mode
@@ -128,7 +126,6 @@ class BaseRequestExpectation:
         """
         Internal handler for loading finished events.
         :param event: The loading finished event.
-        :type event: cdp.network.LoadingFinished
         """
         if self.count is None:
             # Single expectation mode

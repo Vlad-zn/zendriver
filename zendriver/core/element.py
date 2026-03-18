@@ -32,12 +32,9 @@ def create(
     we don't need to fetch it for every single element.
 
     :param node: cdp dom node representation
-    :type node: cdp.dom.Node
     :param tab: the target object to which this element belongs
-    :type tab: Tab
     :param tree: [Optional] the full node tree to which <node> belongs, enhances performance.
                 when not provided, you need to call `await elem.update()` before using .children / .parent
-    :type tree:
     """
 
     elem = Element(node, tab, tree)
@@ -51,9 +48,7 @@ class Element:
         Represents an (HTML) DOM Element
 
         :param node: cdp dom node representation
-        :type node: cdp.dom.Node
         :param tab: the target object to which this element belongs
-        :type tab: Tab
         """
         if not node:
             raise Exception("node cannot be None")
@@ -218,7 +213,6 @@ class Element:
             href = element.get("href")
 
         :param name: The name of the attribute to retrieve.
-        :type name: str
         :return: The value of the attribute, or None if it does not exist.
         :rtype: str | None
         """
@@ -455,7 +449,6 @@ class Element:
         calling the element object will call a js method on the object
         eg, element.play() in case of a video element, it will call .play()
         :param js_method:
-        :type js_method:
         :return:
         :rtype:
         """
@@ -477,11 +470,8 @@ class Element:
             - function myFunction(elem) { alert(elem) }
 
         :param js_function: the js function definition which received this element.
-        :type js_function: str
         :param return_by_value:
-        :type return_by_value:
         :param await_promise: when True, waits for the promise to resolve before returning
-        :type await_promise: bool
         :return:
         :rtype:
         """
@@ -619,16 +609,11 @@ class Element:
         drag an element to another element or target coordinates. dragging of elements should be supported  by the site of course
 
 
-        :param destination: another element where to drag to, or a tuple (x,y) of ints representing coordinate
-        :type destination: Element or coordinate as x,y tuple
-
+        :param destination: target Element or coordinates (x,y) to drag to
         :param relative: when True, treats coordinate as relative. for example (-100, 200) will move left 100px and down 200px
-        :type relative:
-
         :param steps: move in <steps> points, this could make it look more "natural" (default 1),
                but also a lot slower.
                for very smooth action use 50-100
-        :type steps: int
         :return:
         :rtype:
         """
@@ -715,7 +700,19 @@ class Element:
 
     async def clear_input(self) -> None:
         """clears an input field"""
-        await self.apply('function (element) { element.value = "" } ')
+        # Use the native prototype setter instead of a direct element.value assignment.
+        # Direct assignment goes through React's instance-level tracker setter, updating
+        # trackerValue and the DOM simultaneously. The subsequent InputEvent then sees no
+        # mismatch and skips onChange. The native setter bypasses the tracker so React
+        # correctly fires onChange.
+        await self.apply(
+            """
+                (el) => {
+                    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '');
+                    el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
+                }
+            """
+        )
 
     async def clear_input_by_deleting(self) -> None:
         """
@@ -729,22 +726,33 @@ class Element:
             """
                 async function clearByDeleting(n, d = 50) {
                     n.focus();
-                    n.setSelectionRange(0, 0);
+                    const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
                     while (n.value.length > 0) {
+                        // Place cursor at end before each keydown. Using Backspace (keyCode 8)
+                        // from the end is more reliable than Delete at position 0, which can
+                        // be a no-op on some VM environments where VK_DELETE is treated as
+                        // backward-delete, causing an infinite loop.
+                        const len = n.value.length;
+                        n.setSelectionRange(len, len);
                         n.dispatchEvent(
                             new KeyboardEvent("keydown", {
-                                key: "Delete",
-                                code: "Delete",
-                                keyCode: 46,
-                                which: 46,
-                                bubbles: !0,
-                                cancelable: !0,
+                                key: "Backspace",
+                                code: "Backspace",
+                                keyCode: 8,
+                                which: 8,
+                                bubbles: true,
+                                cancelable: true,
                             })
                         );
-                        n.value = n.value.slice(1);
+                        // Use native prototype setter to bypass React's _valueTracker.
+                        // Direct assignment (n.value = x) goes through React's instance-level
+                        // setter, updating trackerValue and DOM simultaneously — the subsequent
+                        // InputEvent sees no mismatch and skips onChange. The native setter
+                        // leaves trackerValue stale so React correctly fires onChange.
+                        nativeSetter.call(n, n.value.slice(0, -1));
+                        n.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
                         await new Promise((r) => setTimeout(r, d));
                     }
-                    n.dispatchEvent(new Event("input", { bubbles: !0 }));
                 }
             """,
             await_promise=True,
@@ -758,13 +766,7 @@ class Element:
 
         hint, if you ever get stuck where using py:meth:`~click`
         does not work, sending the keystroke \\n or \\r\\n or a spacebar work wonders!
-
-        when special_characters is True, it will use grapheme clusters to send the text:
-        if the character is in the printable ASCII range, it sends it using dispatch_key_event.
-        otherwise, it uses insertText, which handles special characters more robustly.
-
         :param text: text to send
-        :param special_characters: when True, uses grapheme clusters to send the text.
         :return: None
         """
         await self.apply("(elem) => elem.focus()")
@@ -897,7 +899,6 @@ class Element:
         When the element is hidden, or has no size, or is otherwise not capturable, a RuntimeError is raised
 
         :param format: jpeg or png (defaults to jpeg)
-        :type format: str
         :param scale: the scale of the screenshot, eg: 1 = size as is, 2 = double, 0.5 is half
         :return: screenshot data as base64 encoded
         :rtype: str
@@ -938,9 +939,7 @@ class Element:
         When the element is hidden, or has no size, or is otherwise not capturable, a RuntimeError is raised
 
         :param filename: uses this as the save path
-        :type filename: PathLike
         :param format: jpeg or png (defaults to jpeg)
-        :type format: str
         :param scale: the scale of the screenshot, eg: 1 = size as is, 2 = double, 0.5 is half
         :return: the path/filename of saved screenshot
         :rtype: str
@@ -977,10 +976,7 @@ class Element:
         """
         displays for a short time a red dot on the element (only if the element itself is visible)
 
-        :param coords: x,y
-        :type coords: x,y
         :param duration: seconds (default 0.5)
-        :type duration:
         :return:
         :rtype:
         """

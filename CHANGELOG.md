@@ -9,17 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix `browser.stopped` to detect when the browser was closed by the user. @puc9
-- Fix typo in `Browser._handle_target_update` that prevented target_info updates @puc9
-- Fix [#128](https://github.com/cdpdriver/zendriver/issues/218): TimeoutError caused by Tab.xpath @ionutcatana
-
 ### Added
 
 ### Changed
 
-- Fix `.dockerignore` @tomokinakamaru
-
 ### Removed
+
+## [0.15.3] - 2026-03-11
+
+### Fixed
+
+- Fix crash in `browser.cookies.get_all()` on Chrome 146 when the `sameParty` field is missing in the cookie JSON returned by CDP.
+- Fix `clear_input()` and `clear_input_by_deleting()` silently failing on React controlled inputs due to `_valueTracker` mechanism; also fix infinite loop in `clear_input_by_deleting()` on some VM environments caused by `VK_DELETE` being treated as backward-delete. @nathanfallet
+
+### Changed
+
+- Docs: `core` modules included in documentation reference section. Slight modifications were done, mostly to remove warnings. @Kajmany
+
+## [0.15.2] - 2025-11-29
+
+### Fixed
+
+- Fix race condition in `Tab.query_selector` and `Tab.query_selector_all` on stale document. @Avejack
+
+## [0.15.1] - 2025-11-18
+
+### Fixed
+
+- Fix `NameError` in `Tab.query_selector` and `Tab.query_selector_all` due to type-checking import of `Element`. @Avejack
+
+## [0.15.0] - 2025-11-04
+
+### Fixed
+
+- Fix `browser.stopped` to detect when the browser was closed by the user. @puc9
+- Fix typo in `Browser._handle_target_update` that prevented target_info updates @puc9
+- Fix [#128](https://github.com/cdpdriver/zendriver/issues/218): TimeoutError caused by Tab.xpath @ionutcatana
+- Fix WebRTC IP Leaks @ethcipher
+
+### Added
+
+- Add `disable_webrtc` and `disable_webgl` args to `Config` class @ethcipher
+
+### Changed
+
+- Fix `.dockerignore` @tomokinakamaru
 
 ## [0.14.2] - 2025-09-09
 
