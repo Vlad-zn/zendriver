@@ -366,19 +366,17 @@ class Tab(Connection):
         :rtype:
         """
         items: List[Element] = []
-        try:
-            await self.send(cdp.dom.enable(), True)
-            loop = asyncio.get_running_loop()
-            start_time = loop.time()
-            while (loop.time() - start_time) < timeout and not items:
-                try:
-                    items = await self.find_all(xpath, timeout=0)
-                except Exception:
-                    items = []  # find_elements_by_text may raise exception
+        loop = asyncio.get_running_loop()
+        start_time = loop.time()
+
+        while (loop.time() - start_time) < timeout and len(items) == 0:
+            try:
+                await self.send(cdp.dom.enable(), True)
+                items = await self.find_all(xpath, timeout=0)
+            except Exception:
+                items = []  # find_elements_by_text may raise exception
 
             await self.disable_dom_agent()
-        except Exception:
-            pass
 
         return items
 
