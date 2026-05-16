@@ -121,7 +121,7 @@ async def test_add_handler_module_event(browser: zd.Browser) -> None:
 
     tab.add_handler(zd.cdp.network, request_handler)
 
-    assert len(tab.handlers) == 27
+    assert len(tab.handlers) == 29
 
 
 async def test_remove_handlers(browser: zd.Browser) -> None:
@@ -298,6 +298,54 @@ async def test_intercept_with_reload(browser: zd.Browser) -> None:
         assert body is not None
         # original_response = loads(body)
         # assert original_response["name"] == "Zendriver"
+
+
+async def test_handler_wont_reenable_without_params(browser: zd.Browser) -> None:
+    # Test the custom enabled domains are not reenabled without params after handler is added
+    tab = browser.main_tab
+    assert tab is not None
+
+    tab.add_handler(zd.cdp.fetch.RequestPaused, lambda _: None)
+    # enable fetch with custom pattern
+    await tab.send(
+        zd.cdp.fetch.enable(
+            [
+                zd.cdp.fetch.RequestPattern(
+                    url_pattern="*/user-data.json",
+                    request_stage=RequestStage.RESPONSE,
+                    resource_type=ResourceType.XHR,
+                )
+            ]
+        )
+    )
+    assert zd.cdp.fetch in tab.manually_enabled_domains
+
+    async with tab.expect_response(sample_file("profile.html")) as response_info:
+        # This will hang if _register_handlers reenables fetch without params
+        await tab.get(sample_file("profile.html"))
+        assert zd.cdp.fetch not in tab.enabled_domains
+        response_body = await response_info.response_body
+        assert response_body is not None
+
+
+async def test_manual_disable_send(browser: zd.Browser) -> None:
+    tab = browser.main_tab
+    assert tab is not None
+    tab.add_handler(zd.cdp.network, lambda _: None)
+    # disable send will overwrite auto enabled domain from handler
+    await tab.send(zd.cdp.network.disable())
+    assert zd.cdp.network not in tab.manually_enabled_domains
+    assert zd.cdp.network not in tab.enabled_domains
+
+
+async def test_auto_enable_domain(browser: zd.Browser) -> None:
+    tab = browser.main_tab
+    assert tab is not None
+    tab.add_handler(zd.cdp.network, lambda _: None)
+    # disable send will overwrite auto enabled domain from handler
+    await tab.get(sample_file("profile.html"))
+    assert zd.cdp.network not in tab.manually_enabled_domains
+    assert zd.cdp.network in tab.enabled_domains
 
 
 async def test_evaluate_complex_object_no_error(browser: zd.Browser) -> None:
