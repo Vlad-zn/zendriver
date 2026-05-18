@@ -447,10 +447,24 @@ class Connection(metaclass=CantTouchThis):
         closes the websocket connection. should not be called manually by users.
         """
         if self.websocket is not None:
-            if self.listener and self.listener.running:
-                self.listener.cancel()
+            listener = self.listener
+            if listener and listener.running:
+                listener.cancel()
                 self.enabled_domains.clear()
                 self.manually_enabled_domains.clear()
+                # Give the listener loop a chance to reach its `finally` so
+                # any pending Transaction futures get resolved and idle is
+                # set before we tear the websocket down.
+                if listener.task is not None:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(listener.task), timeout=1)
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        pass
+                    except Exception:
+                        logger.debug(
+                            "listener task raised during aclose shutdown",
+                            exc_info=True,
+                        )
             await self.websocket.close()
             self.websocket = None
             logger.debug("\n❌ closed websocket connection to %s", self.websocket_url)
@@ -782,6 +796,28 @@ class Listener:
         return True
 
     async def listener_loop(self) -> None:
+        try:
+            await self._listener_recv_loop()
+        finally:
+            # When the listener exits by cancellation, ConnectionClosed,
+            # an unexpected error, or normal break — no one must be left
+            # hanging on this connection. There are two awaiters to wake:
+            #   1) `await tx` callers in Connection._send (mapper entries),
+            #   2) `await self.idle.wait()` callers in Connection.wait().
+            self.idle.set()
+            mapper = self.connection.mapper
+            if mapper:
+                for tx in list(mapper.values()):
+                    if not tx.done():
+                        tx.set_exception(
+                            ConnectionError(
+                                "zendriver listener exited; "
+                                "CDP transaction abandoned"
+                            )
+                        )
+                mapper.clear()
+
+    async def _listener_recv_loop(self) -> None:
         while True:
             if self.connection.websocket is None:
                 raise ValueError("no websocket connection")
@@ -804,6 +840,13 @@ class Listener:
                 # break on connection closed
                 logger.debug(
                     "connection listener exception while reading websocket:\n%s", e
+                )
+                break
+            except Exception as e:
+                logger.warning(
+                    "unexpected error in listener recv loop: %s",
+                    e,
+                    exc_info=True,
                 )
                 break
 
