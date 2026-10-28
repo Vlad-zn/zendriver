@@ -1,9 +1,13 @@
 import asyncio
 import re
-from typing import Union, Any
+from typing import Any, TypeVar, Union
 
 from .. import cdp
 from .connection import Connection
+
+BaseRequestExpectationT = TypeVar(
+    "BaseRequestExpectationT", bound="BaseRequestExpectation"
+)
 
 
 class BaseRequestExpectation:
@@ -22,7 +26,12 @@ class BaseRequestExpectation:
     :type count: Union[int, None]
     """
 
-    def __init__(self, tab: Connection, url_pattern: Union[str, re.Pattern[str], list[Union[str, re.Pattern[str]]]], count: Union[int, None] = None):
+    def __init__(
+        self,
+        tab: Connection,
+        url_pattern: Union[str, re.Pattern[str], list[Union[str, re.Pattern[str]]]],
+        count: Union[int, None] = None,
+    ):
         self.tab = tab
         # Normalize to list of patterns
         if isinstance(url_pattern, list):
@@ -46,13 +55,21 @@ class BaseRequestExpectation:
         self.responses: list[cdp.network.ResponseReceived] = []
         self.loading_finished_events: list[cdp.network.LoadingFinished] = []
         self.request_ids: list[cdp.network.RequestId] = []
-        self.all_done_future: Union[asyncio.Future[None], None] = None if count is None else asyncio.Future()
+        self.all_done_future: Union[asyncio.Future[None], None] = (
+            None if count is None else asyncio.Future()
+        )
 
         # Track which patterns have been matched
         self.matched_patterns: set[int] = set()  # Indices of matched patterns
-        self.request_id_to_pattern: dict[cdp.network.RequestId, int] = {}  # Map request_id to pattern index
-        self.matched_patterns_responses: set[int] = set()  # Patterns that have received responses
-        self.matched_patterns_loading: set[int] = set()  # Patterns that have finished loading
+        self.request_id_to_pattern: dict[
+            cdp.network.RequestId, int
+        ] = {}  # Map request_id to pattern index
+        self.matched_patterns_responses: set[int] = (
+            set()
+        )  # Patterns that have received responses
+        self.matched_patterns_loading: set[int] = (
+            set()
+        )  # Patterns that have finished loading
 
     def _matches_any_pattern(self, url: str) -> Union[int, None]:
         """
@@ -166,7 +183,7 @@ class BaseRequestExpectation:
             cdp.network.LoadingFinished, self._loading_finished_handler
         )
 
-    async def __aenter__(self):  # type: ignore
+    async def __aenter__(self: BaseRequestExpectationT) -> BaseRequestExpectationT:
         """
         Enter the context manager, adding request and response handlers.
         """
@@ -284,7 +301,9 @@ class BaseRequestExpectation:
         await self.wait_for_all()
         bodies = []
         for response_event in self.responses:
-            body = await self.tab.send(cdp.network.get_response_body(request_id=response_event.request_id))
+            body = await self.tab.send(
+                cdp.network.get_response_body(request_id=response_event.request_id)
+            )
             bodies.append(body)
         return bodies
 
